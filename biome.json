@@ -20,6 +20,9 @@
       "recommended": true,
       "suspicious": {
         "noUnknownAtRules": "off"
+      },
+      "correctness": {
+        "noUnusedVariables": "error"
       }
     },
     "domains": {
@@ -30,7 +33,21 @@
   "assist": {
     "actions": {
       "source": {
-        "organizeImports": "on"
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              ":URL:",
+              ":PACKAGE:",
+              "^react$",
+              "^next",
+              "@/components",
+              "@/lib",
+              ":ALIAS:",
+              ":PATH:"
+            ]
+          }
+        }
       }
     }
   }

@@ -1,0 +1,1 @@
+ALTER TABLE "product" ADD COLUMN "currency" varchar(10) DEFAULT 'VND' NOT NULL;
