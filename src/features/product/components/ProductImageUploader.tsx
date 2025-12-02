@@ -13,6 +13,11 @@ import {
 } from "@/components/ui/card";
 import type { UploadedImage } from "@/lib/schemas/product";
 import { cn } from "@/lib/utils";
+import {
+  createSignedUrlForProductService,
+  FileMeta,
+  uploadFileWithProgress,
+} from "../service/product";
 
 interface ProductImageUploaderProps {
   value?: UploadedImage[];
@@ -30,11 +35,6 @@ export default function ProductImageUploader({
   const [images, setImages] = useState<UploadedImage[]>(value);
   const objectUrlMapRef = useRef<Record<string, string>>({});
 
-  useEffect(() => {
-    onChange?.(images);
-  }, [images]);
-
-  // helper to update local images only
   const setLocalImages = (
     next: UploadedImage[] | ((prev: UploadedImage[]) => UploadedImage[])
   ) => {
@@ -77,23 +77,18 @@ export default function ProductImageUploader({
     setLocalImages((prev) => [...prev, ...newEntries]);
 
     try {
-      const filesMeta = allowed.map((f) => ({
+      const filesMeta: FileMeta[] = allowed.map((f) => ({
         name: f.name,
         type: f.type,
         size: f.size,
       }));
 
-      const res = await fetch("/api/upload-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ files: filesMeta }),
+      const response = await createSignedUrlForProductService({
+        filesMeta,
       });
 
-      if (!res.ok) {
-        throw new Error("Không thể lấy upload URLs");
-      }
+      const data = await response.json();
 
-      const data = await res.json();
       const { results } = data;
 
       if (!Array.isArray(results) || results.length !== allowed.length) {
@@ -158,32 +153,6 @@ export default function ProductImageUploader({
     }
   };
 
-  const uploadFileWithProgress = (
-    url: string,
-    file: File,
-    onProgress: (percent: number) => void
-  ) =>
-    new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("PUT", url);
-      xhr.setRequestHeader("Content-Type", file.type);
-      xhr.upload.onprogress = (ev) => {
-        if (ev.lengthComputable) {
-          const percent = Math.round((ev.loaded / ev.total) * 100);
-          onProgress(percent);
-        }
-      };
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve();
-        } else {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
-        }
-      };
-      xhr.onerror = () => reject(new Error("Network error during upload"));
-      xhr.send(file);
-    });
-
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleFiles(e.target.files);
     e.currentTarget.value = "";
@@ -205,6 +174,10 @@ export default function ProductImageUploader({
 
     setLocalImages((prev) => prev.filter((it) => it.id !== img.id));
   };
+
+  useEffect(() => {
+    onChange?.(images);
+  }, [images]);
 
   useEffect(() => {
     return () => {

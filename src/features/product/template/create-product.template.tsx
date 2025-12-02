@@ -29,6 +29,8 @@ import {
   formCreateProductSchema,
 } from "@/lib/schemas/product";
 import ProductImageUploader from "../components/ProductImageUploader";
+import { createProductService } from "../service/product";
+import { navigationPath } from "@/constants/navigation";
 
 type FormValues = CreateProductInput;
 
@@ -37,39 +39,29 @@ const CreateProductTemplate = () => {
 
   const [submitting, startSubmitting] = useTransition();
 
+  const defaultValues = {
+    name: "",
+    description: "",
+    price: "",
+    currency: "VND",
+    images: [],
+  };
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formCreateProductSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      price: "",
-      currency: "VND",
-      images: [],
-    },
+    defaultValues,
   });
 
   function onSubmit(values: FormValues) {
     startSubmitting(async () => {
       try {
-        const res = await fetch("/api/products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data?.error || "Create product failed");
-        }
-
         const data: {
           id: string;
-        } = await res.json();
+        } = await createProductService(values);
 
         if (data.id) {
           toast.success("Tạo sản phẩm thành công");
-
-          return router.push("/");
+          return router.push(navigationPath.HOME);
         }
       } catch (e: any) {
         console.error(e);
@@ -153,7 +145,7 @@ const CreateProductTemplate = () => {
                           onChange={(e) => {
                             const value = e.target.value.replace(
                               /[^0-9.]/g,
-                              "",
+                              ""
                             );
                             field.onChange(value);
                           }}
