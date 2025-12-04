@@ -104,16 +104,9 @@ export default async function Home() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 flex-1">
-                {data.map((p) => {
-                  const img = p.images.find((i) => i.is_primary) ?? p.images[0];
-                  const _src =
-                    img?.url ??
-                    (img?.key
-                      ? `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${img.key}`
-                      : "/icon/empty_product.png");
-
-                  return <ProductCard key={p.id} product={p} />;
-                })}
+                {data.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
               </div>
             )}
           </div>
