@@ -13,7 +13,7 @@ export type CreateSignedUrlForProductService = {
 export const createSignedUrlForProductService = async (
   data: CreateSignedUrlForProductService
 ) => {
-  const response = await fetch("/api/products", {
+  const response = await fetch("/api/upload-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -65,5 +65,8 @@ export const uploadFileWithProgress = (
       }
     };
     xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.onabort = () => {
+      reject(new Error("aborted"));
+    };
     xhr.send(file);
   });

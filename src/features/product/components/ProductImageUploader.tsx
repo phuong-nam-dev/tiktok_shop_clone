@@ -13,11 +13,7 @@ import {
 } from "@/components/ui/card";
 import type { UploadedImage } from "@/lib/schemas/product";
 import { cn } from "@/lib/utils";
-import {
-  createSignedUrlForProductService,
-  FileMeta,
-  uploadFileWithProgress,
-} from "../service/product";
+import { createSignedUrlForProductService, FileMeta } from "../service/product";
 
 interface ProductImageUploaderProps {
   value?: UploadedImage[];
@@ -34,6 +30,7 @@ export default function ProductImageUploader({
   const [error, setError] = useState<string | null>(null);
   const [images, setImages] = useState<UploadedImage[]>(value);
   const objectUrlMapRef = useRef<Record<string, string>>({});
+  const xhrsRef = useRef<Record<string, XMLHttpRequest | null>>({});
 
   const setLocalImages = (
     next: UploadedImage[] | ((prev: UploadedImage[]) => UploadedImage[])
@@ -46,6 +43,8 @@ export default function ProductImageUploader({
   const handleFiles = async (files: FileList | null) => {
     setError(null);
     if (!files) return;
+
+    console.log("Handling files", files);
 
     const incoming = Array.from(files);
     if (images.length + incoming.length > maxFiles) {
@@ -87,9 +86,7 @@ export default function ProductImageUploader({
         filesMeta,
       });
 
-      const data = await response.json();
-
-      const { results } = data;
+      const { results } = response;
 
       if (!Array.isArray(results) || results.length !== allowed.length) {
         throw new Error("Upload URL mismatch");
@@ -98,15 +95,39 @@ export default function ProductImageUploader({
       await Promise.all(
         results.map(async (r: any, idx: number) => {
           const file = allowed[idx];
-          const entryId = newEntries[idx].id;
+          const entryId = newEntries[idx].id as string;
+
+          xhrsRef.current[entryId] = null;
 
           try {
-            await uploadFileWithProgress(r.uploadUrl, file, (percent) => {
-              setLocalImages((prev) =>
-                prev.map((it) =>
-                  it.id === entryId ? { ...it, progress: percent } : it
-                )
-              );
+            await new Promise<void>((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open("PUT", r.uploadUrl);
+              xhr.setRequestHeader("Content-Type", file.type);
+              xhr.upload.onprogress = (ev) => {
+                if (ev.lengthComputable) {
+                  const percent = Math.round((ev.loaded / ev.total) * 100);
+                  setLocalImages((prev) =>
+                    prev.map((it) =>
+                      it.id === entryId ? { ...it, progress: percent } : it
+                    )
+                  );
+                }
+              };
+              xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  resolve();
+                } else {
+                  reject(new Error(`Upload failed with status ${xhr.status}`));
+                }
+              };
+              xhr.onerror = () =>
+                reject(new Error("Network error during upload"));
+              xhr.onabort = () => {
+                reject(new Error("aborted"));
+              };
+              xhrsRef.current[entryId] = xhr;
+              xhr.send(file);
             });
 
             // Update the entry to done. IMPORTANT: do NOT call onChange here.
@@ -137,6 +158,8 @@ export default function ProductImageUploader({
                   : it
               )
             );
+          } finally {
+            xhrsRef.current[entryId] = null;
           }
         })
       );
@@ -165,7 +188,16 @@ export default function ProductImageUploader({
 
   const handleRemove = (img: UploadedImage) => {
     if (img.id) {
+      const xhr = xhrsRef.current[img.id];
+      if (xhr) {
+        try {
+          xhr.abort();
+        } catch (e) {}
+        xhrsRef.current[img.id] = null;
+      }
+
       const preview = objectUrlMapRef.current[img.id];
+
       if (preview) {
         URL.revokeObjectURL(preview);
         delete objectUrlMapRef.current[img.id];
@@ -185,6 +217,13 @@ export default function ProductImageUploader({
         URL.revokeObjectURL(u)
       );
       objectUrlMapRef.current = {};
+
+      Object.values(xhrsRef.current).forEach((x) => {
+        try {
+          x?.abort();
+        } catch (e) {}
+      });
+      xhrsRef.current = {};
     };
   }, []);
 
@@ -293,7 +332,19 @@ export default function ProductImageUploader({
         <Button
           variant="ghost"
           type="button"
-          onClick={() => setLocalImages([])}
+          onClick={() => {
+            Object.values(xhrsRef.current).forEach((x) => {
+              try {
+                x?.abort();
+              } catch (e) {}
+            });
+            xhrsRef.current = {};
+            Object.values(objectUrlMapRef.current).forEach((u) =>
+              URL.revokeObjectURL(u)
+            );
+            objectUrlMapRef.current = {};
+            setLocalImages([]);
+          }}
           disabled={images.length === 0}
         >
           <Trash2 className="h-4 w-4 mr-1" />

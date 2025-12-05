@@ -17,7 +17,7 @@ const s3 = new S3Client({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const files: { name: string; type: string }[] = body.files || [];
+    const files: { name: string; type: string }[] = body.filesMeta || [];
 
     const results = await Promise.all(
       files.map(async (f, idx) => {
